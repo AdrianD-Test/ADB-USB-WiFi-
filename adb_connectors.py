@@ -126,18 +126,17 @@ class AdbWifiConnector:
         else:
             return False, stderr
 
-    # Removed the set_tcpip_mode method
-    # def set_tcpip_mode(self, port="5555"):
-    #     """Sets a USB-connected device to listen for ADB over TCP/IP."""
-    #     print(f"Attempting to set device to listen on TCP/IP port {port}...")
-    #     print("NOTE: Device must be connected via USB for this to work!")
-    #     stdout, stderr = _run_adb_command(['tcpip', str(port)])
-    #     if stdout and "restarting in TCP mode" in stdout:
-    #         print(f"Device TCP/IP mode response: {stdout.strip()}")
-    #         print("Now you can disconnect USB and use 'Connect to device via IP' option.")
-    #         return True, stdout
-    #     else:
-    #         return False, stderr
+    def set_tcpip_mode(self, port="5555"):
+        """Sets a USB-connected device to listen for ADB over TCP/IP."""
+        print(f"Attempting to set device to listen on TCP/IP port {port}...")
+        print("NOTE: Device must be connected via USB for this to work!")
+        stdout, stderr = _run_adb_command(['tcpip', str(port)])
+        if stdout and "restarting in TCP mode" in stdout:
+            print(f"Device TCP/IP mode response: {stdout.strip()}")
+            print("Now you can disconnect USB and use 'Connect to device via IP' option.")
+            return True, stdout
+        else:
+            return False, stderr
 
     def disconnect_device_ip(self, ip_port):
         """Disconnects from a specific Wi-Fi ADB device."""

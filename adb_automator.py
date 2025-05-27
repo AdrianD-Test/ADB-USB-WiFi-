@@ -2,13 +2,7 @@ from adb_utils import _run_adb_command
 
 # --- AdbAutomator Class ---
 class AdbAutomator:
-    """
-    Provides experimental methods to automate interaction with device screen
-    for tasks like backup confirmation or password input.
-    WARNING: These methods are highly device-dependent, Android version-dependent,
-    and may not work reliably due to security measures or UI variations.
-    Coordinates (x, y) are specific to your device's resolution and UI layout.
-    """
+
     def __init__(self):
         pass
 
@@ -24,10 +18,7 @@ class AdbAutomator:
         return True
 
     def tap_screen(self, serial, x, y):
-        """
-        Attempts to tap on the screen at specified coordinates.
-        x, y: pixel coordinates on the device screen.
-        """
+
         # Convert to int as adb shell input tap expects integers
         x = int(x)
         y = int(y)
@@ -37,7 +28,6 @@ class AdbAutomator:
     def input_text(self, serial, text):
         """
         Attempts to input text into a focused text field.
-        WARNING: This is often blocked for system-level password prompts.
         """
         print(f"Attempting to input text: '{text}' on {serial}...")
         # Escape spaces and special characters for adb shell input text

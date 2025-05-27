@@ -314,10 +314,6 @@ class MainCli:
         confirm_pass_coords = None
 
         if auto_confirm:
-            print("\n!!! WARNING: Automatic confirmation is EXPERIMENTAL and UNRELIABLE. !!!")
-            print("It requires precise screen coordinates, which vary by device/Android version.")
-            print("You may need to manually provide them or it will likely fail.")
-            print("Refer to AdbAutomator class comments for how to find coordinates.")
 
             use_provided_coords = input("Use the provided coordinates ? (y/n): ").lower().strip() == 'y'
 
@@ -435,9 +431,6 @@ class MainCli:
         confirm_pass_coords = None
 
         if auto_confirm:
-            print("\n!!! WARNING: Automatic confirmation is EXPERIMENTAL and UNRELIABLE. !!!")
-            print("It requires precise screen coordinates, which vary by device/Android version.")
-            print("You may need to manually provide them or it will likely fail.")
 
             use_provided_coords = input("Use the provided coordinates? (y/n): ").lower().strip() == 'y'
 
@@ -561,7 +554,6 @@ class MainCli:
             self._save_single_info_to_file(serial, "Installed Applications List Error", stderr)
 
     def backup_menu(self):
-        """Presents a menu for backup operations."""
         selected_device_serial = self._select_target_device()
         if not selected_device_serial:
             return
@@ -621,10 +613,10 @@ class MainCli:
             print("1. Check Wi-Fi Device Connection Status (Refresh)")
             print("2. Connect to Device via IP and Port")
             print("3. Pair Device Wirelessly (Android 11+)")
-            # Removed option 4: "4. Set USB-Connected Device to TCP/IP Mode (for Wi-Fi Debugging)"
-            print("4. Disconnect Specific Wi-Fi Device (by IP:Port)") # This was 5, now 4
-            print("5. Disconnect ALL Wi-Fi Devices") # This was 6, now 5
-            print("6. Return to Main Menu") # This was 7, now 6
+            print("4. Set USB-Connected Device to TCP/IP Mode (for Wi-Fi Debugging)")
+            print("5. Disconnect Specific Wi-Fi Device (by IP:Port)")
+            print("6. Disconnect ALL Wi-Fi Devices")
+            print("7. Return to Main Menu")
 
             choice = input("Enter your choice: ")
 
@@ -656,11 +648,42 @@ class MainCli:
                 print(f"\nPairing attempt: {message}")
                 self._update_device_lists()
 
-            # Removed the logic for choice '4' (Set TCP/IP Mode)
-            # elif choice == '4':
-            #     # This block is removed
+            elif choice == '4':
+                usb_connected, usb_msg, usb_serials = self.usb_connector.check_connection()
+                if not usb_connected:
+                    print("\nERROR: No USB-connected devices found to set to TCP/IP mode.")
+                    print("Please connect your device via USB first and ensure USB debugging is enabled.")
+                    continue
 
-            elif choice == '4': # This was '5', now it's '4'
+                target_usb_serial = None
+                if len(usb_serials) == 1:
+                    target_usb_serial = usb_serials[0]
+                    print(f"Using USB device: {target_usb_serial}")
+                elif len(usb_serials) > 1:
+                    print("\nMultiple USB devices found. Please select one to set to TCP/IP mode:")
+                    for i, serial in enumerate(usb_serials):
+                        print(f"  {i+1}. {serial}")
+                    while True:
+                        try:
+                            usb_choice = int(input("Enter the number: "))
+                            if 1 <= usb_choice <= len(usb_serials):
+                                target_usb_serial = usb_serials[usb_choice - 1]
+                                break
+                            else:
+                                print("Invalid choice. Please enter a valid number.")
+                        except ValueError:
+                            print("Invalid input. Please enter a number.")
+
+                if target_usb_serial:
+                    port = input("Enter TCP/IP port (default is 5555): ").strip() or "5555"
+                    success, message = self.wifi_connector.set_tcpip_mode(port)
+                    print(f"\nSet TCP/IP mode result: {message}")
+                    if success:
+                        print(f"IMPORTANT: After disconnecting USB, connect via Wi-Fi using 'adb connect <device_ip>:{port}'")
+                        print("You can find the device's IP address in its Wi-Fi settings.")
+                    self._update_device_lists()
+
+            elif choice == '5':
                 ip_port_to_disconnect = input("Enter the IP and port of the device to disconnect (e.g., 192.168.1.100:5555): ").strip()
                 if not ip_port_to_disconnect:
                     print("IP and port cannot be empty.")
@@ -669,7 +692,7 @@ class MainCli:
                 print(f"\nDisconnect attempt: {message}")
                 self._update_device_lists()
 
-            elif choice == '5': # This was '6', now it's '5'
+            elif choice == '6':
                 confirm = input("Are you sure you want to disconnect ALL Wi-Fi ADB devices? (y/n): ").lower().strip()
                 if confirm == 'y':
                     success, message = self.wifi_connector.disconnect_all_wifi()
@@ -678,14 +701,13 @@ class MainCli:
                 else:
                     print("Disconnect all cancelled.")
 
-            elif choice == '6': # This was '7', now it's '6'
+            elif choice == '7':
                 print("Exiting Wi-Fi ADB Connection Management.")
                 break
             else:
-                print("Invalid choice. Please enter a number between 1 and 6.") # Updated range
+                print("Invalid choice. Please enter a number between 1 and 7.")
 
     def main_menu(self):
-        """Displays the main menu and handles user input."""
         while True:
             self._update_device_lists()
 
