@@ -1,0 +1,1 @@
+This Python-based ADB Utility provides a command-line interface to streamline common Android Debug Bridge operations. It allows users to manage USB and Wi-Fi device connections, retrieve detailed device information, perform full or app-specific backups (with experimental automation features), and interact with logcat, all through a user-friendly menu system.
