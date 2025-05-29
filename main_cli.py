@@ -1,6 +1,7 @@
 import os
 import re
 import time
+import subprocess # Make sure subprocess is imported
 from datetime import datetime
 
 from adb_utils import _run_adb_command, clean_serial_for_filename
@@ -626,120 +627,126 @@ class MainCli:
                 print(msg)
                 print("------------------------------------")
                 self._update_device_lists()
-
             elif choice == '2':
-                ip_port = input("Enter device IP and port (e.g., 192.168.1.100:5555): ").strip()
-                if not ip_port:
-                    print("IP and port cannot be empty.")
-                    continue
-                success, message = self.wifi_connector.connect_device_ip_port(ip_port)
-                print(f"\nConnection attempt: {message}")
+                ip_address = input("Enter device IP address (e.g., 192.168.1.100): ").strip()
+                port = input("Enter device port (default 5555, press Enter to use default): ").strip()
+                port = port if port else "5555"
+                if not ip_address:
+                     print("IP address cannot be empty. Connection cancelled.")
+                     continue
+                success, message = self.wifi_connector.connect_device_ip_port(f"{ip_address}:{port}")
+                print(message)
                 self._update_device_lists()
-
             elif choice == '3':
-                ip = input("Enter device IP for pairing (e.g., 192.168.1.100): ").strip()
-                port = input("Enter pairing port (usually 37817, found on device Wireless Debugging screen): ").strip()
-                pairing_code = input("Enter pairing code (e.g., 123456, found on device Wireless Debugging screen): ").strip()
-
-                if not all([ip, port, pairing_code]):
-                    print("All pairing details are required.")
+                print("\n--- Wireless Pairing (Android 11+) ---")
+                print("On your Android device: Go to Settings > Developer options > Wireless debugging.")
+                print("Tap 'Pair device with pairing code' to get the IP:Port and Pairing Code.")
+                ip_port_pairing = input("Enter the IP Address and Port from your phone (e.g., 192.168.1.100:41234): ").strip()
+                pairing_code = input("Enter the 6-digit pairing code from your phone: ").strip()
+                if not ip_port_pairing or not pairing_code:
+                    print("IP:Port and Pairing Code cannot be empty. Pairing cancelled.")
                     continue
-                success, message = self.wifi_connector.pair_device_wireless(ip, port, pairing_code)
-                print(f"\nPairing attempt: {message}")
+                success, message = self.wifi_connector.pair_wireless_device(ip_port_pairing, pairing_code)
+                print(message)
                 self._update_device_lists()
-
             elif choice == '4':
-                usb_connected, usb_msg, usb_serials = self.usb_connector.check_connection()
-                if not usb_connected:
-                    print("\nERROR: No USB-connected devices found to set to TCP/IP mode.")
-                    print("Please connect your device via USB first and ensure USB debugging is enabled.")
-                    continue
-
-                target_usb_serial = None
-                if len(usb_serials) == 1:
-                    target_usb_serial = usb_serials[0]
-                    print(f"Using USB device: {target_usb_serial}")
-                elif len(usb_serials) > 1:
-                    print("\nMultiple USB devices found. Please select one to set to TCP/IP mode:")
-                    for i, serial in enumerate(usb_serials):
-                        print(f"  {i+1}. {serial}")
-                    while True:
-                        try:
-                            usb_choice = int(input("Enter the number: "))
-                            if 1 <= usb_choice <= len(usb_serials):
-                                target_usb_serial = usb_serials[usb_choice - 1]
-                                break
-                            else:
-                                print("Invalid choice. Please enter a valid number.")
-                        except ValueError:
-                            print("Invalid input. Please enter a number.")
-
-                if target_usb_serial:
-                    port = input("Enter TCP/IP port (default is 5555): ").strip() or "5555"
-                    success, message = self.wifi_connector.set_tcpip_mode(port)
-                    print(f"\nSet TCP/IP mode result: {message}")
-                    if success:
-                        print(f"IMPORTANT: After disconnecting USB, connect via Wi-Fi using 'adb connect <device_ip>:{port}'")
-                        print("You can find the device's IP address in its Wi-Fi settings.")
-                    self._update_device_lists()
-
-            elif choice == '5':
-                ip_port_to_disconnect = input("Enter the IP and port of the device to disconnect (e.g., 192.168.1.100:5555): ").strip()
-                if not ip_port_to_disconnect:
-                    print("IP and port cannot be empty.")
-                    continue
-                success, message = self.wifi_connector.disconnect_device_ip(ip_port_to_disconnect)
-                print(f"\nDisconnect attempt: {message}")
+                selected_usb_serial = self._select_target_device()
+                if selected_usb_serial:
+                    success, message = self.usb_connector.set_tcpip_mode(selected_usb_serial)
+                    print(message)
                 self._update_device_lists()
-
+            elif choice == '5':
+                disconnect_target = input("Enter the IP:Port of the Wi-Fi device to disconnect (e.g., 192.168.1.100:5555): ").strip()
+                if not disconnect_target:
+                    print("Disconnect target cannot be empty.")
+                    continue
+                success, message = self.wifi_connector.disconnect_device_ip(disconnect_target)
+                print(message)
+                self._update_device_lists()
             elif choice == '6':
-                confirm = input("Are you sure you want to disconnect ALL Wi-Fi ADB devices? (y/n): ").lower().strip()
-                if confirm == 'y':
-                    success, message = self.wifi_connector.disconnect_all_wifi()
-                    print(f"\nDisconnect all attempt: {message}")
-                    self._update_device_lists()
-                else:
-                    print("Disconnect all cancelled.")
-
+                success, message = self.wifi_connector.disconnect_all_wifi()
+                print(message)
+                self._update_device_lists()
             elif choice == '7':
                 print("Exiting Wi-Fi ADB Connection Management.")
                 break
             else:
                 print("Invalid choice. Please enter a number between 1 and 7.")
 
-    def main_menu(self):
+    def _display_activation_tutorial(self):
+        """Displays the tutorial for activating Developer Options and debugging."""
+        print("\n" + "="*80)
+        print("                 ANDROID ADB SETUP TUTORIAL                 ")
+        print("="*80 + "\n")
+        print("Before you can use this ADB CLI tool, you need to enable some essential settings on your Android device.")
+        print("Please follow these steps carefully. The exact wording and location of options might vary slightly")
+        print("based on your Android version and phone manufacturer (e.g., Samsung, Google Pixel, Xiaomi).\n")
+
+        print("--- Step 1: Activate Developer Options ---")
+        print("1. Open Settings: Find and tap the 'Settings' app icon on your device.")
+        print("2. Navigate to 'About phone' (or similar): Scroll down to 'About phone', 'About device', or 'System' > 'About phone'.")
+        print("3. Find the Build Number: Locate 'Build number' (sometimes under 'Software information').")
+        print("4. Tap the Build Number Repeatedly: Rapidly tap on 'Build number' 7 times.")
+        print("   You'll see a countdown message, then 'You are now a developer!'.")
+        print("5. Go Back to Settings: Press the back arrow.")
+        print("6. Locate Developer Options: It will now appear in your Settings (often under System > Developer options, or at the bottom of main Settings).\n")
+
+        print("--- Step 2: Activate USB Debugging ---")
+        print("1. Enter Developer Options: Navigate to the 'Developer options' menu.")
+        print("2. Toggle USB Debugging: Find 'USB debugging' and tap its toggle switch to turn it 'On'.")
+        print("   Confirm the warning pop-up by tapping 'OK' or 'Allow'.")
+        print("3. Connect to PC (and authorize): Connect your Android device to your computer via a USB cable.")
+        print("   On your phone, a 'Allow USB debugging?' pop-up will appear. Check 'Always allow from this computer' and tap 'Allow'.\n")
+
+        print("--- Step 3: Activate Wireless Debugging (for Android 11 and Higher) ---")
+        print("Requires Android 11+ and both device & PC on the SAME Wi-Fi network.")
+        print("1. Enter Developer Options: Go to 'Settings' > 'Developer options'.")
+        print("2. Toggle Wireless Debugging: Find 'Wireless debugging' and tap its toggle to turn it 'On'. Confirm any warnings.")
+        print("3. Pair with a Device (on your Android phone): *Tap on the 'Wireless debugging' TEXT itself* (not just the toggle).")
+        print("   Tap on 'Pair device with pairing code'. A 6-digit Wi-Fi pairing code and an IP address & Port will appear.")
+        print("   KEEP THIS SCREEN OPEN on your phone.")
+        print("4. Pair from your Computer (using ADB): Open a terminal/command prompt on your PC (where ADB is installed).")
+        print("   Run: `adb pair <IP_ADDRESS_FROM_PHONE>:<PORT_FROM_PHONE>` (e.g., `adb pair 192.168.1.100:41234`)")
+        print("   When prompted, enter the 6-digit pairing code from your phone and press Enter.")
+        print("5. Connect to the Device (using ADB): In your PC's terminal, run:")
+        print("   `adb connect <IP_ADDRESS_FROM_PHONE>:<PORT_FROM_PHONE>` (e.g., `adb connect 192.168.1.100:41234`)")
+        print("   You can verify with `adb devices`.")
+        print("\nImportant: Your device's IP might change. You may need to re-pair or re-connect.")
+        print("="*80 + "\n")
+        input("Press Enter to return to the main menu...")
+
+
+    def run(self):
+        """Main loop for the CLI application."""
         while True:
             self._update_device_lists()
-
-            print("\n--- ADB Utility Main Menu ---")
-            print("1. Check/Manage USB ADB Connections")
-            print("2. Manage Wi-Fi ADB Connections")
-            print("3. Get Device Information / Query Device")
-            print("4. Perform Device Backup")
-            print("5. Exit")
+            print("\n--- ADB CLI Main Menu ---")
+            print("1. ADB Device Activation Tutorial (Developer Options, USB/Wireless Debugging)") # New option
+            print("2. Get Device Information")
+            print("3. Manage USB Connections")
+            print("4. Manage Wi-Fi Connections")
+            print("5. Perform Backup Operations")
+            print("6. Exit")
 
             choice = input("Enter your choice: ")
 
             if choice == '1':
-                self.usb_connection_menu()
+                self._display_activation_tutorial()
             elif choice == '2':
-                self.wifi_connection_menu()
+                self.get_device_info_menu()
             elif choice == '3':
-                if self.all_authorized_devices:
-                    self.get_device_info_menu()
-                else:
-                    print("No authorized devices found. Please connect and authorize a device first.")
+                self.usb_connection_menu()
             elif choice == '4':
-                if self.all_authorized_devices:
-                    self.backup_menu()
-                else:
-                    print("No authorized devices found. Please connect and authorize a device first.")
+                self.wifi_connection_menu()
             elif choice == '5':
-                print("Exiting ADB Utility. Goodbye!")
+                self.backup_menu()
+            elif choice == '6':
+                print("Exiting ADB CLI. Goodbye!")
                 break
             else:
-                print("Invalid choice. Please enter a number between 1 and 5.")
+                print("Invalid choice. Please enter a number between 1 and 6.")
 
+# Example of how to run the CLI (assuming this is in main.py or similar)
 if __name__ == "__main__":
     cli = MainCli()
-    cli.main_menu()
+    cli.run()
